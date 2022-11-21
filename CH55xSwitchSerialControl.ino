@@ -119,6 +119,22 @@ void parseLine(char* line) {
     } else if (strncmp(&line[3], "CENTER", 6) == 0) {
       pc_report.RY = STICK_NEUTRAL;
     }
+  } else if (line[0] == 0xaa) {
+    // nx2
+    pc_report.Button = line[5] | (line[6] << 8);
+    pc_report.Hat = line[7];
+    pc_report.LX = STICK_NEUTRAL;
+    pc_report.LY = STICK_NEUTRAL;
+    pc_report.RX = STICK_NEUTRAL;
+    pc_report.RY = STICK_NEUTRAL;
+    if (line[8] & 1) pc_report.LX = STICK_MIN;
+    if (line[8] & 2) pc_report.LX = STICK_MAX;
+    if (line[8] & 4) pc_report.LY = STICK_MIN;
+    if (line[8] & 8) pc_report.LY = STICK_MAX;
+    if (line[9] & 1) pc_report.RX = STICK_MIN;
+    if (line[9] & 2) pc_report.RX = STICK_MAX;
+    if (line[9] & 4) pc_report.RY = STICK_MIN;
+    if (line[9] & 8) pc_report.RY = STICK_MAX;
   } else if (line[0] >= '0' && line[0] <= '9') {
     // pokecon or nx2 ver2.08
     __xdata uint8_t char_pos = 0;
@@ -235,14 +251,20 @@ void setup() {
   resetDirections();
 }
 
+__xdata bool isNx2 = false;
+
 void loop() {
   while (Serial0_available()) {
     char c = Serial0_read();
 
-    if ((c != '\n') && idx < MAX_BUFFER)
+    if (c == 0xaa) {
+      isNx2 = true;
+    }
+
+    if ((c != '\n' || isNx2) && idx < MAX_BUFFER)
       pc_report_str[idx++] = c;
 
-    if (c == '\r') {
+    if (c == '\r' || (isNx2 && idx == 11)) {
       idx = 0;
       parseLine(pc_report_str);
       sendReport((uint8_t*)&pc_report);
