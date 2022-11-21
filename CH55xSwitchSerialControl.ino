@@ -76,7 +76,7 @@ void parseLine(char* line) {
       pc_report.Hat = HAT_DOWN_LEFT;
     } else if (strncmp(&line[4], "BOTTOM", 6) == 0) {
       pc_report.Hat = HAT_DOWN;
-    } else if (strncmp(&line[4], "LEFT", 16) == 4) {
+    } else if (strncmp(&line[4], "LEFT", 4) == 4) {
       pc_report.Hat = HAT_LEFT;
     } else if (strncmp(&line[4], "TOP_LEFT", 8) == 0) {
       pc_report.Hat = HAT_UP_LEFT;
@@ -120,7 +120,7 @@ void parseLine(char* line) {
       pc_report.RY = STICK_NEUTRAL;
     }
   } else if (line[0] == 0xaa) {
-    // nx2
+    // nx2 ver 2.00 - 2.07
     pc_report.Button = line[5] | (line[6] << 8);
     pc_report.Hat = line[7];
     pc_report.LX = STICK_NEUTRAL;
@@ -136,7 +136,7 @@ void parseLine(char* line) {
     if (line[9] & 4) pc_report.RY = STICK_MIN;
     if (line[9] & 8) pc_report.RY = STICK_MAX;
   } else if (line[0] >= '0' && line[0] <= '9') {
-    // pokecon or nx2 ver2.08
+    // pokecon or nx2 ver 2.08
     __xdata uint8_t char_pos = 0;
 
     p_btns = 0;
