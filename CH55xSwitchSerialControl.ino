@@ -76,7 +76,7 @@ void parseLine(char* line) {
       pc_report.Hat = HAT_DOWN_LEFT;
     } else if (strncmp(&line[4], "BOTTOM", 6) == 0) {
       pc_report.Hat = HAT_DOWN;
-    } else if (strncmp(&line[4], "LEFT", 4) == 4) {
+    } else if (strncmp(&line[4], "LEFT", 4) == 0) {
       pc_report.Hat = HAT_LEFT;
     } else if (strncmp(&line[4], "TOP_LEFT", 8) == 0) {
       pc_report.Hat = HAT_UP_LEFT;
@@ -259,6 +259,9 @@ void loop() {
 
     if (c == 0xaa) {
       isNx2 = true;
+    } else {
+      if (idx == 0)
+        isNx2 = false;
     }
 
     if ((c != '\n' || isNx2) && idx < MAX_BUFFER)
