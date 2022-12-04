@@ -248,14 +248,20 @@ void parseLine(char* line) {
 void setup() {
   USBInit();
   Serial0_begin(9600);
+  Serial1_begin(9600);
   resetDirections();
 }
 
 __xdata bool isNx2 = false;
 
 void loop() {
-  while (Serial0_available()) {
-    char c = Serial0_read();
+  while (Serial0_available() || Serial1_available()) {
+    char c = 0;
+    if (Serial0_available()) {
+      c = Serial0_read();
+    } else {
+      c = Serial1_read();
+    }
 
     if (c == 0xaa) {
       isNx2 = true;
