@@ -2,6 +2,109 @@
 #include "include/ch5xx.h"
 #include "include/ch5xx_usb.h"
 
+#define EMULATE_PROCON
+
+#ifdef EMULATE_PROCON
+
+// Battery levels
+#define BATTERY_FULL        0x08
+#define BATTERY_MEDIUM      0x06
+#define BATTERY_LOW         0x04
+#define BATTERY_CRITICAL    0x02
+#define BATTERY_EMPTY       0x00
+#define BATTERY_CHARGING    0x01 // Can be OR'ed
+
+#define STICK_MIN 0x00
+#define STICK_NEUTRAL 0x800
+#define STICK_MAX 0xFFF
+
+typedef enum {
+    SUBCOMMAND_CONTROLLER_STATE_ONLY        = 0x00,
+    SUBCOMMAND_BLUETOOTH_MANUAL_PAIRING     = 0x01,
+    SUBCOMMAND_REQUEST_DEVICE_INFO          = 0x02,
+    SUBCOMMAND_SET_INPUT_REPORT_MODE        = 0x03,
+    SUBCOMMAND_TRIGGER_BUTTONS_ELAPSED_TIME = 0x04,
+    SUBCOMMAND_GET_PAGE_LIST_STATE          = 0x05,
+    SUBCOMMAND_SET_HCI_STATE                = 0x06,
+    SUBCOMMAND_RESET_PAIRING_INFO           = 0x07,
+    SUBCOMMAND_SET_SHIPMENT_LOW_POWER_STATE = 0x08,
+    SUBCOMMAND_SPI_FLASH_READ               = 0x10,
+    SUBCOMMAND_SPI_FLASH_WRITE              = 0x11,
+    SUBCOMMAND_SPI_SECTOR_ERASE             = 0x12,
+    SUBCOMMAND_RESET_NFC_IR_MCU             = 0x20,
+    SUBCOMMAND_SET_NFC_IR_MCU_CONFIG        = 0x21,
+    SUBCOMMAND_SET_NFC_IR_MCU_STATE         = 0x22,
+    SUBCOMMAND_SET_PLAYER_LIGHTS            = 0x30,
+    SUBCOMMAND_GET_PLAYER_LIGHTS            = 0x31,
+    SUBCOMMAND_SET_HOME_LIGHTS              = 0x38,
+    SUBCOMMAND_ENABLE_IMU                   = 0x40,
+    SUBCOMMAND_SET_IMU_SENSITIVITY          = 0x41,
+    SUBCOMMAND_WRITE_IMU_REGISTERS          = 0x42,
+    SUBCOMMAND_READ_IMU_REGISTERS           = 0x43,
+    SUBCOMMAND_ENABLE_VIBRATION             = 0x48,
+    SUBCOMMAND_GET_REGULATED_VOLTAGE        = 0x50,
+} Switch_Subcommand_t;
+
+// https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/spi_flash_notes.md
+typedef enum {
+    ADDRESS_SERIAL_NUMBER         = 0x6000,
+    ADDRESS_CONTROLLER_COLOR      = 0x6050,
+    ADDRESS_FACTORY_PARAMETERS_1  = 0x6080,
+    ADDRESS_FACTORY_PARAMETERS_2  = 0x6098,
+    ADDRESS_FACTORY_CALIBRATION_1 = 0x6020,
+    ADDRESS_FACTORY_CALIBRATION_2 = 0x603D,
+    ADDRESS_STICKS_CALIBRATION    = 0x8010,
+    ADDRESS_IMU_CALIBRATION       = 0x8028,
+} SPI_Address_t;
+
+// Standard input report sent to Switch (doesn't contain IMU data)
+// Note that compilers can align and order bits in every byte however they want (endianness)
+// Taken from https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#standard-input-report-format
+// The order in every byte is inverted
+typedef //union {
+    //uint8_t raw[11];
+    struct {
+        uint8_t connection_info: 4;
+        uint8_t battery_level: 4;
+        bool button_y: 1;
+        bool button_x: 1;
+        bool button_b: 1;
+        bool button_a: 1;
+        bool button_right_sr: 1;
+        bool button_right_sl: 1;
+        bool button_r: 1;
+        bool button_zr: 1;
+        bool button_minus: 1;
+        bool button_plus: 1;
+        bool button_thumb_r: 1;
+        bool button_thumb_l: 1;
+        bool button_home: 1;
+        bool button_capture: 1;
+        uint8_t dummy: 1;
+        bool charging_grip: 1;
+        bool dpad_down: 1;
+        bool dpad_up: 1;
+        bool dpad_right: 1;
+        bool dpad_left: 1;
+        bool button_left_sr: 1;
+        bool button_left_sl: 1;
+        bool button_l: 1;
+        bool button_zl: 1;
+        uint8_t analog[6];
+        uint8_t vibrator_input_report;
+    //};
+} USB_StandardReport_t;
+
+// Full (extended) input report sent to Switch, with IMU data
+typedef //union {
+    //uint8_t raw[29];
+    struct {
+        USB_StandardReport_t standardReport;
+        int16_t imu[3 * 2 * 3]; // each axis is uint16_t, 3 axis per sensor, 2 sensors (accel and gyro), 3 reports
+    //};
+} USB_ExtendedReport_t;
+
+#else
 #define BUTTON_NONE 0x0000
 #define BUTTON_Y 0x0001
 #define BUTTON_B 0x0002
@@ -45,6 +148,7 @@ typedef struct {
   uint8_t RY;
   uint8_t VendorSpec;
 } USB_JoystickReport_Input_t;
+#endif
 
 #define MOD_LEFT_CTRL (1 << 8)
 #define MOD_LEFT_SHIFT (1 << 9)
@@ -566,7 +670,12 @@ __code uint16_t _asciimap[256] = {
 };
 
 void USBInit(void);
+#ifdef EMULATE_PROCON
+void sendReport(void);
+extern USB_ExtendedReport_t pc_report;
+#else
 void sendReport(uint8_t* p);
+#endif
 void pressKey(uint8_t c);
 void releaseKey(uint8_t c);
 void pressSpecialKey(uint8_t c);
