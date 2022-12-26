@@ -1,11 +1,14 @@
 #include <Serial.h>
-#include "HIDGamepad.h"
+#include "HIDdevice.h"
 #define MAX_BUFFER 32
 
 __xdata char pc_report_str[MAX_BUFFER];
 __xdata uint16_t idx = 0;
 
 __xdata uint8_t pc_lx, pc_ly, pc_rx, pc_ry;
+
+__xdata bool isNx2 = false;
+__xdata bool isText = false;
 
 USB_JoystickReport_Input_t pc_report;
 
@@ -21,6 +24,7 @@ void resetDirections() {
 void parseLine(char* line) {
   __xdata uint16_t p_btns;
   __xdata uint8_t hat;
+  __xdata uint16_t keyValue;
 
   if (strncmp(line, "end", 3) == 0) {
     // pokecon
@@ -119,6 +123,52 @@ void parseLine(char* line) {
     } else if (strncmp(&line[3], "CENTER", 6) == 0) {
       pc_report.RY = STICK_NEUTRAL;
     }
+  } else if (line[0] == '\"') {
+    // pokecon
+    __xdata uint8_t char_pos = 1;
+    while (line[char_pos] != 0 && line[char_pos] != '\"' || (line[char_pos + 1] != 0 && line[char_pos + 1] != '\r' && line[char_pos + 1] != '\n')) {
+      pushKey(line[char_pos]);
+      char_pos++;
+    }
+  } else if (strncmp(line, "Key", 3) == 0) {
+    // pokecon
+    __xdata uint8_t char_pos = 4;
+
+    keyValue = 0;
+    while (line[char_pos] != ' ' && line[char_pos] != '\r') {
+      keyValue *= 10;
+      if (line[char_pos] >= '0' && line[char_pos] <= '9') {
+        keyValue += (line[char_pos] - '0');
+      }
+      char_pos++;
+    }
+    pushKey(keyValue);
+  } else if (strncmp(line, "Press", 5) == 0) {
+    // pokecon
+    __xdata uint8_t char_pos = 6;
+
+    keyValue = 0;
+    while (line[char_pos] != ' ' && line[char_pos] != '\r') {
+      keyValue *= 10;
+      if (line[char_pos] >= '0' && line[char_pos] <= '9') {
+        keyValue += (line[char_pos] - '0');
+      }
+      char_pos++;
+    }
+    pressKey(keyValue);
+  } else if (strncmp(line, "Release", 7) == 0) {
+    // pokecon
+    __xdata uint8_t char_pos = 8;
+
+    keyValue = 0;
+    while (line[char_pos] != ' ' && line[char_pos] != '\r') {
+      keyValue *= 10;
+      if (line[char_pos] >= '0' && line[char_pos] <= '9') {
+        keyValue += (line[char_pos] - '0');
+      }
+      char_pos++;
+    }
+    releaseKey(keyValue);
   } else if (line[0] == 0xaa) {
     // nx2 ver 2.00 - 2.07
     pc_report.Button = line[5] | (line[6] << 8);
@@ -206,7 +256,7 @@ void parseLine(char* line) {
     }
     if (line[char_pos] != '\r') char_pos++;
 
-    while (line[char_pos] != '\r') {
+    while (line[char_pos] != ' ' && line[char_pos] != '\r') {
       pc_ry *= 16;
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
         pc_ry += (line[char_pos] - '0');
@@ -218,6 +268,60 @@ void parseLine(char* line) {
       char_pos++;
     }
 
+    // keyboard
+    if (line[char_pos] == ' ') {
+      char_pos++;
+      keyValue = 0;
+      __xdata bool release = false;
+      __xdata bool special = false;
+      if (line[char_pos] == 'R') {
+        // release
+        char_pos++;
+        release = true;
+        if (line[char_pos + 1] == '!') {
+          // all release
+          releaseAllKey();
+          goto create_report;
+        }
+      }
+      if (line[char_pos] == 'S') {
+        // special
+        char_pos++;
+        special = true;
+      }
+
+      if (line[char_pos] >= '0' && line[char_pos] <= '9') {
+        keyValue += (line[char_pos] - '0');
+      } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
+        keyValue += (line[char_pos] - 'A' + 10);
+      } else {
+        keyValue += (line[char_pos] - 'a' + 10);
+      }
+      keyValue *= 16;
+      char_pos++;
+      if (line[char_pos] >= '0' && line[char_pos] <= '9') {
+        keyValue += (line[char_pos] - '0');
+      } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
+        keyValue += (line[char_pos] - 'A' + 10);
+      } else {
+        keyValue += (line[char_pos] - 'a' + 10);
+      }
+      if (release) {
+        if (special) {
+          releaseSpecialKey(keyValue);
+        } else {
+          releaseKey(keyValue);
+        }
+      } else {
+        if (special) {
+          pressSpecialKey(keyValue);
+        } else {
+          pressKey(keyValue);
+        }
+      }
+    }
+
+create_report:
     // HAT : 0(TOP) to 7(TOP_LEFT) in clockwise | 8(NEUTRAL)
     pc_report.Hat = hat;
 
@@ -250,9 +354,12 @@ void setup() {
   Serial0_begin(9600);
   Serial1_begin(9600);
   resetDirections();
-}
 
-__xdata bool isNx2 = false;
+  for (uint8_t i = 0; i < 5; i++) {
+    sendReport((uint8_t*)&pc_report);
+    delay(40);
+  }
+}
 
 void loop() {
   while (Serial0_available() || Serial1_available()) {
@@ -264,19 +371,26 @@ void loop() {
     }
 
     if (c == 0xaa) {
-      isNx2 = true;
+      if (idx == 0)
+        isNx2 = true;
+      isText = false;
+    } else if (c == '\"') {
+      if (idx == 0)
+        isText = true;
+      isNx2 = false;
     } else {
       if (idx == 0)
         isNx2 = false;
+      isText = false;
     }
 
-    if ((c != '\n' || isNx2) && idx < MAX_BUFFER)
+    if ((c != '\n' || isNx2 || isText) && idx < MAX_BUFFER)
       pc_report_str[idx++] = c;
 
-    if (c == '\r' || (isNx2 && idx == 11)) {
+    if ((c == '\r' && !isNx2 && !isText) || (isNx2 && idx == 11) || (isText && c == '\r' && pc_report_str[idx - 2] == '\"')) {
       idx = 0;
       parseLine(pc_report_str);
-      sendReport((uint8_t*)&pc_report);
+      if (!isText) sendReport((uint8_t*)&pc_report);
       memset(pc_report_str, 0, sizeof(pc_report_str));
     }
   }

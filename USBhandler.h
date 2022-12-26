@@ -12,6 +12,9 @@ uint8_t Ep0Buffer[];
 extern __xdata __at(EP1_ADDR)
 uint8_t Ep1Buffer[];
 
+extern __xdata __at(EP2_ADDR)
+uint8_t Ep2Buffer[];
+
 extern __xdata uint16_t SetupLen;
 extern __xdata uint8_t SetupReq, UsbConfig;
 extern const __code uint8_t *pDescr;
@@ -24,7 +27,7 @@ extern const __code uint8_t *pDescr;
 // Out
 #define EP0_OUT_Callback USB_EP0_OUT
 #define EP1_OUT_Callback USB_EP1_OUT
-#define EP2_OUT_Callback NOP_Process
+#define EP2_OUT_Callback USB_EP2_OUT
 #define EP3_OUT_Callback NOP_Process
 #define EP4_OUT_Callback NOP_Process
 
@@ -38,7 +41,7 @@ extern const __code uint8_t *pDescr;
 // IN
 #define EP0_IN_Callback USB_EP0_IN
 #define EP1_IN_Callback USB_EP1_IN
-#define EP2_IN_Callback NOP_Process
+#define EP2_IN_Callback USB_EP2_IN
 #define EP3_IN_Callback NOP_Process
 #define EP4_IN_Callback NOP_Process
 

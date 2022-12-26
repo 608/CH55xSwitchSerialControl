@@ -1,24 +1,22 @@
 #include "USBhandler.h"
 #include "USBconstant.h"
 
-//Keyboard functions:
-
-void USB_EP1_IN() {
-  UEP1_T_LEN = 0;
-  UEP1_CTRL = UEP1_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_NAK;  // Default NAK
+void USB_EP2_IN() {
+  UEP2_T_LEN = 0;
+  UEP2_CTRL = UEP2_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_NAK;  // Default NAK
 }
-void USB_EP1_OUT() {}
-
-void USB_EP2_IN();
-void USB_EP2_OUT();
+void USB_EP2_OUT() {}
 
 __xdata __at(EP0_ADDR)
-uint8_t Ep0Buffer[64];
+uint8_t Ep0Buffer[0];
 __xdata __at(EP1_ADDR)
 uint8_t Ep1Buffer[72];
+__xdata __at(EP2_ADDR)
+uint8_t Ep2Buffer[72];
 
 __xdata uint16_t SetupLen;
 __xdata uint8_t SetupReq, UsbConfig;
+__xdata uint8_t Setuptest = 0;
 
 __code uint8_t *pDescr;
 
@@ -31,38 +29,10 @@ void USB_EP0_SETUP() {
   if (len == (sizeof(USB_SETUP_REQ))) {
     SetupLen = ((uint16_t)UsbSetupBuf->wLengthH << 8) | (UsbSetupBuf->wLengthL);
     len = 0;  // Default is success and upload 0 length
+
     SetupReq = UsbSetupBuf->bRequest;
     usbMsgFlags = 0;
-    if ((UsbSetupBuf->bRequestType & USB_REQ_TYP_MASK) != USB_REQ_TYP_STANDARD)  //Not standard request
-    {
-
-      //here is the commnunication starts, refer to usbFunctionSetup of USBtiny
-      //or usb_setup in usbtiny
-
-      switch ((UsbSetupBuf->bRequestType & USB_REQ_TYP_MASK)) {
-        case USB_REQ_TYP_VENDOR:
-          {
-            switch (SetupReq) {
-              default:
-                len = 0xFF;  //command not supported
-                break;
-            }
-            break;
-          }
-        case USB_REQ_TYP_CLASS:
-          {
-            switch (SetupReq) {
-              default:
-                len = 0xFF;  //command not supported
-                break;
-            }
-            break;
-          }
-        default:
-          len = 0xFF;  //command not supported
-          break;
-      }
-    } else  //Standard request
+    if ((UsbSetupBuf->bRequestType & USB_REQ_TYP_MASK) == USB_REQ_TYP_STANDARD)
     {
       switch (SetupReq)  //Request ccfType
       {
@@ -86,20 +56,27 @@ void USB_EP0_SETUP() {
               } else if (UsbSetupBuf->wValueL == 2) {
                 pDescr = Prod_Des;
                 len = Prod_DesLen;
+              } else if (UsbSetupBuf->wValueL == 3) {
+                pDescr = Seri_Des;
+                len = Seri_DesLen;
               } else {
                 len = 0xff;
               }
               break;
+            case 0x21:
+              pDescr = HidDesc;
+              len = HidDescLen;
+              break;
             case 0x22:
-              if (UsbSetupBuf->wValueL == 0) {
+              if (UsbSetupBuf->wIndexL == 1) {
+                pDescr = ReportDesc2;
+                len = ReportDescLen2;
+              } else {
                 pDescr = ReportDesc;
                 len = ReportDescLen;
-              } else {
-                len = 0xff;
               }
               break;
             default:
-              len = 0xff;  // Unsupported descriptors or error
               break;
           }
           if (len != 0xff) {
@@ -137,10 +114,10 @@ void USB_EP0_SETUP() {
               if (CfgDesc[7] & 0x20) {
                 // wake up
               } else {
-                len = 0xFF;  //Failed
+                //len = 0xFF;  //Failed
               }
             } else {
-              len = 0xFF;  //Failed
+              //len = 0xFF;  //Failed
             }
           } else if ((UsbSetupBuf->bRequestType & USB_REQ_RECIP_MASK) == USB_REQ_RECIP_ENDP)  // endpoint
           {
@@ -346,12 +323,7 @@ void USBInterrupt(void) {
       case UIS_TOKEN_SETUP:
         {  //SDCC will take IRAM if array of function pointer is used.
           switch (callIndex) {
-            case 0: EP0_SETUP_Callback(); break;
-            case 1: EP1_SETUP_Callback(); break;
-            case 2: EP2_SETUP_Callback(); break;
-            case 3: EP3_SETUP_Callback(); break;
-            case 4: EP4_SETUP_Callback(); break;
-            default: break;
+            default: EP0_SETUP_Callback(); break;
           }
         }
         break;
@@ -363,7 +335,8 @@ void USBInterrupt(void) {
   // Device mode USB bus reset
   if (UIF_BUS_RST) {
     UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
-    UEP1_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK | UEP_R_RES_ACK;
+    UEP1_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK;
+    UEP2_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;
 
     USB_DEV_AD = 0x00;
     UIF_SUSPEND = 0;
@@ -393,6 +366,7 @@ void USBInterrupt(void) {
 #pragma restore
 
 void USBDeviceCfg() {
+  IE_USB = 0;                   //Enable USB interrupt
   USB_CTRL = 0x00;                                        //Clear USB control register
   USB_CTRL &= ~bUC_HOST_MODE;                             //This bit is the device selection mode
   USB_CTRL |= bUC_DEV_PU_EN | bUC_INT_BUSY | bUC_DMA_EN;  //USB device and internal pull-up enable, automatically return to NAK before interrupt flag is cleared during interrupt
@@ -416,8 +390,12 @@ void USBDeviceIntCfg() {
 
 void USBDeviceEndPointCfg() {
   UEP1_DMA = (uint16_t)Ep1Buffer;                             //Endpoint 1 data transfer address
+  UEP2_DMA = (uint16_t)Ep2Buffer;                             //Endpoint 2 data transfer address
   UEP1_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK | UEP_R_RES_ACK;  //Endpoint 2 automatically flips the sync flag, IN transaction returns NAK, OUT returns ACK
+  UEP2_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK | UEP_R_RES_ACK;
   UEP0_DMA = (uint16_t)Ep0Buffer;                             //Endpoint 0 data transfer address
   UEP4_1_MOD = 0XC0;                                          //endpoint1 TX RX enable
+  UEP2_3_MOD |= bUEP2_TX_EN;		// Enable Endpoint2 Tx
+	UEP2_3_MOD |= bUEP2_RX_EN;		// Enable Endpoint2 Rx
   UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;                  //Manual flip, OUT transaction returns ACK, IN transaction returns NAK
 }
