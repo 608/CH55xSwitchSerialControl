@@ -2,6 +2,8 @@
 #include "HIDdevice.h"
 #define MAX_BUFFER 32
 
+#define EMULATE_PROCON
+
 __xdata char pc_report_str[MAX_BUFFER];
 __xdata uint16_t idx = 0;
 
@@ -10,15 +12,33 @@ __xdata uint8_t pc_lx, pc_ly, pc_rx, pc_ry;
 __xdata bool isNx2 = false;
 __xdata bool isText = false;
 
+#ifndef EMULATE_PROCON
 USB_JoystickReport_Input_t pc_report;
+#endif
 
 void resetDirections() {
+#ifdef EMULATE_PROCON
+  //memset(&pc_report, 0, sizeof(USB_ExtendedReport_t));
+  pc_report.standardReport.connection_info = 1;
+  pc_report.standardReport.battery_level = BATTERY_FULL | BATTERY_CHARGING;
+  pc_report.standardReport.analog[0] = STICK_NEUTRAL & 0xFF;
+  pc_report.standardReport.analog[1] = ((STICK_NEUTRAL & 0x0F) << 4) | ((STICK_NEUTRAL & 0xF00) >> 8);
+  pc_report.standardReport.analog[2] = (STICK_NEUTRAL & 0xFF0) >> 4;
+  pc_report.standardReport.analog[3] = STICK_NEUTRAL & 0xFF;
+  pc_report.standardReport.analog[4] = ((STICK_NEUTRAL & 0x0F) << 4) | ((STICK_NEUTRAL & 0xF00) >> 8);
+  pc_report.standardReport.analog[5] = (STICK_NEUTRAL & 0xFF0) >> 4;
+  pc_report.standardReport.dpad_down = false;
+  pc_report.standardReport.dpad_up = false;
+  pc_report.standardReport.dpad_right = false;
+  pc_report.standardReport.dpad_left = false;
+#else
   memset(&pc_report, 0, sizeof(USB_JoystickReport_Input_t));
   pc_report.LX = 128;
   pc_report.LY = 128;
   pc_report.RX = 128;
   pc_report.RY = 128;
   pc_report.Hat = HAT_NEUTRAL;
+#endif
 }
 
 void parseLine(char* line) {
@@ -355,10 +375,12 @@ void setup() {
   Serial1_begin(9600);
   resetDirections();
 
+#ifndef EMULATE_PROCON
   for (uint8_t i = 0; i < 5; i++) {
     sendReport((uint8_t*)&pc_report);
     delay(40);
   }
+#endif
 }
 
 void loop() {
@@ -390,7 +412,11 @@ void loop() {
     if ((c == '\r' && !isNx2 && !isText) || (isNx2 && idx == 11) || (isText && c == '\r' && pc_report_str[idx - 2] == '\"')) {
       idx = 0;
       parseLine(pc_report_str);
+#ifdef EMULATE_PROCON
+      if (!isText) sendReport();
+#else
       if (!isText) sendReport((uint8_t*)&pc_report);
+#endif
       memset(pc_report_str, 0, sizeof(pc_report_str));
     }
   }

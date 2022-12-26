@@ -1,18 +1,26 @@
 #include "USBhandler.h"
 #include "USBconstant.h"
 
+#define EMULATE_PROCON
+
+#ifndef EMULATE_PROCON
 void USB_EP2_IN() {
   UEP2_T_LEN = 0;
   UEP2_CTRL = UEP2_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_NAK;  // Default NAK
 }
 void USB_EP2_OUT() {}
+#endif
 
 __xdata __at(EP0_ADDR)
 uint8_t Ep0Buffer[0];
 __xdata __at(EP1_ADDR)
 uint8_t Ep1Buffer[72];
 __xdata __at(EP2_ADDR)
+#ifdef EMULATE_PROCON
+uint8_t Ep2Buffer[128];
+#else
 uint8_t Ep2Buffer[72];
+#endif
 
 __xdata uint16_t SetupLen;
 __xdata uint8_t SetupReq, UsbConfig;
