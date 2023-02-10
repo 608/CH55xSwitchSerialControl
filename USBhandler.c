@@ -1,26 +1,18 @@
 #include "USBhandler.h"
 #include "USBconstant.h"
 
-#define EMULATE_PROCON
-
-#ifndef EMULATE_PROCON
 void USB_EP2_IN() {
   UEP2_T_LEN = 0;
   UEP2_CTRL = UEP2_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_NAK;  // Default NAK
 }
 void USB_EP2_OUT() {}
-#endif
 
 __xdata __at(EP0_ADDR)
 uint8_t Ep0Buffer[0];
 __xdata __at(EP1_ADDR)
 uint8_t Ep1Buffer[72];
 __xdata __at(EP2_ADDR)
-#ifdef EMULATE_PROCON
-uint8_t Ep2Buffer[128];
-#else
 uint8_t Ep2Buffer[72];
-#endif
 
 __xdata uint16_t SetupLen;
 __xdata uint8_t SetupReq, UsbConfig;
@@ -40,8 +32,7 @@ void USB_EP0_SETUP() {
 
     SetupReq = UsbSetupBuf->bRequest;
     usbMsgFlags = 0;
-    if ((UsbSetupBuf->bRequestType & USB_REQ_TYP_MASK) == USB_REQ_TYP_STANDARD)
-    {
+    if ((UsbSetupBuf->bRequestType & USB_REQ_TYP_MASK) == USB_REQ_TYP_STANDARD) {
       switch (SetupReq)  //Request ccfType
       {
         case USB_GET_DESCRIPTOR:
@@ -374,7 +365,7 @@ void USBInterrupt(void) {
 #pragma restore
 
 void USBDeviceCfg() {
-  IE_USB = 0;                   //Enable USB interrupt
+  IE_USB = 0;                                             //Enable USB interrupt
   USB_CTRL = 0x00;                                        //Clear USB control register
   USB_CTRL &= ~bUC_HOST_MODE;                             //This bit is the device selection mode
   USB_CTRL |= bUC_DEV_PU_EN | bUC_INT_BUSY | bUC_DMA_EN;  //USB device and internal pull-up enable, automatically return to NAK before interrupt flag is cleared during interrupt
@@ -383,8 +374,13 @@ void USBDeviceCfg() {
   //     UDEV_CTRL |= bUD_LOW_SPEED;                                                //Run for 1.5M
   USB_CTRL &= ~bUC_LOW_SPEED;
   UDEV_CTRL &= ~bUD_LOW_SPEED;  //Select full speed 12M mode, default mode
-  UDEV_CTRL = bUD_PD_DIS;       // Disable DP/DM pull-down resistor
-  UDEV_CTRL |= bUD_PORT_EN;     //Enable physical port
+#if defined(CH551) || defined(CH552) || defined(CH549)
+  UDEV_CTRL = bUD_PD_DIS;  // Disable DP/DM pull-down resistor
+#endif
+#if defined(CH559)
+  UDEV_CTRL = bUD_DP_PD_DIS;  // Disable DP/DM pull-down resistor
+#endif
+  UDEV_CTRL |= bUD_PORT_EN;  //Enable physical port
 }
 
 void USBDeviceIntCfg() {
@@ -397,13 +393,23 @@ void USBDeviceIntCfg() {
 }
 
 void USBDeviceEndPointCfg() {
-  UEP1_DMA = (uint16_t)Ep1Buffer;                             //Endpoint 1 data transfer address
-  UEP2_DMA = (uint16_t)Ep2Buffer;                             //Endpoint 2 data transfer address
+#if defined(CH559)
+  //CH559 use differend endianness for these registers
+  UEP0_DMA_H = ((uint16_t)Ep0Buffer >> 8);  //Endpoint 0 data transfer address
+  UEP0_DMA_L = ((uint16_t)Ep0Buffer >> 0);  //Endpoint 0 data transfer address
+  UEP1_DMA_H = ((uint16_t)Ep1Buffer >> 8);  //Endpoint 1 data transfer address
+  UEP1_DMA_L = ((uint16_t)Ep1Buffer >> 0);  //Endpoint 1 data transfer address
+  UEP2_DMA_H = ((uint16_t)Ep2Buffer >> 8);  //Endpoint 2 data transfer address
+  UEP2_DMA_L = ((uint16_t)Ep2Buffer >> 0);  //Endpoint 2 data transfer address
+#else
+  UEP0_DMA = (uint16_t)Ep0Buffer;  //Endpoint 0 data transfer address
+  UEP1_DMA = (uint16_t)Ep1Buffer;  //Endpoint 1 data transfer address
+  UEP2_DMA = (uint16_t)Ep2Buffer;  //Endpoint 2 data transfer address
+#endif
   UEP1_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK | UEP_R_RES_ACK;  //Endpoint 2 automatically flips the sync flag, IN transaction returns NAK, OUT returns ACK
   UEP2_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK | UEP_R_RES_ACK;
-  UEP0_DMA = (uint16_t)Ep0Buffer;                             //Endpoint 0 data transfer address
-  UEP4_1_MOD = 0XC0;                                          //endpoint1 TX RX enable
-  UEP2_3_MOD |= bUEP2_TX_EN;		// Enable Endpoint2 Tx
-	UEP2_3_MOD |= bUEP2_RX_EN;		// Enable Endpoint2 Rx
-  UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;                  //Manual flip, OUT transaction returns ACK, IN transaction returns NAK
+  UEP4_1_MOD = 0XC0;                          //endpoint1 TX RX enable
+  UEP2_3_MOD |= bUEP2_TX_EN;                  // Enable Endpoint2 Tx
+  UEP2_3_MOD |= bUEP2_RX_EN;                  // Enable Endpoint2 Rx
+  UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;  //Manual flip, OUT transaction returns ACK, IN transaction returns NAK
 }
