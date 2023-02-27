@@ -16,10 +16,10 @@ USB_JoystickReport_Input_t pc_report;
 
 void resetDirections() {
   memset(&pc_report, 0, sizeof(USB_JoystickReport_Input_t));
-  pc_report.LX = 128;
-  pc_report.LY = 128;
-  pc_report.RX = 128;
-  pc_report.RY = 128;
+  pc_report.LX = STICK_NEUTRAL;
+  pc_report.LY = STICK_NEUTRAL;
+  pc_report.RX = STICK_NEUTRAL;
+  pc_report.RY = STICK_NEUTRAL;
   pc_report.Hat = HAT_NEUTRAL;
 }
 
@@ -30,7 +30,7 @@ void parseLine(char* line) {
   __xdata uint8_t ly = STICK_NEUTRAL;
   __xdata uint8_t rx = STICK_NEUTRAL;
   __xdata uint8_t ry = STICK_NEUTRAL;
-  __xdata uint8_t keyValue = STICK_NEUTRAL;
+  __xdata uint8_t keyValue = 0x80;
 
   if (strncmp(line, "end", 3) == 0) {
     // pokecon
@@ -213,6 +213,10 @@ void parseLine(char* line) {
   } else if (line[0] >= '0' && line[0] <= '9') {
     // pokecon
     __xdata uint8_t char_pos = 0;
+    lx = pc_report.LX;
+    ly = pc_report.LY;
+    rx = pc_report.RX;
+    ry = pc_report.RY;
 
     btns = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
@@ -242,6 +246,7 @@ void parseLine(char* line) {
     }
     if (line[char_pos] != '\r') char_pos++;
 
+    pc_lx = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
       pc_lx *= 16;
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
@@ -255,6 +260,7 @@ void parseLine(char* line) {
     }
     if (line[char_pos] != '\r') char_pos++;
 
+    pc_ly = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
       pc_ly *= 16;
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
@@ -268,6 +274,7 @@ void parseLine(char* line) {
     }
     if (line[char_pos] != '\r') char_pos++;
 
+    pc_rx = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
       pc_rx *= 16;
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
@@ -281,6 +288,7 @@ void parseLine(char* line) {
     }
     if (line[char_pos] != '\r') char_pos++;
 
+    pc_ry = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
       pc_ry *= 16;
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
