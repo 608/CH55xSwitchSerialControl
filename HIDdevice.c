@@ -287,3 +287,10 @@ void pushKey(uint8_t c) {
   releaseKey(c);
   delay(30);
 }
+
+void pushSpecialKey(uint8_t c) {
+  pressSpecialKey(c);
+  delay(30);
+  releaseSpecialKey(c);
+  delay(30);
+}

@@ -309,4 +309,5 @@ void releaseKey(uint8_t c);
 void pressSpecialKey(uint8_t c);
 void releaseSpecialKey(uint8_t c);
 void pushKey(uint8_t c);
+void pushSpecialKey(uint8_t c);
 void releaseAllKey(void);

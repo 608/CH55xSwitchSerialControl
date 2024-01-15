@@ -136,42 +136,75 @@ void parseLine(char* line) {
   } else if (strncmp(line, "Key", 3) == 0) {
     // pokecon
     __xdata uint8_t char_pos = 4;
+    __xdata uint8_t is_hex = 0;
 
     keyValue = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
-      keyValue *= 10;
+      if (is_hex) {
+        keyValue *= 16;
+      } else {
+        keyValue *= 10;
+      }
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
         keyValue += (line[char_pos] - '0');
+      } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
+        keyValue += (line[char_pos] - 'A' + 10);
+      } else if (line[char_pos] == 'x' || line[char_pos] == 'X') {
+        is_hex = 1;
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
+        keyValue += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
     }
-    pushKey(keyValue);
+    pushSpecialKey(keyValue);
   } else if (strncmp(line, "Press", 5) == 0) {
     // pokecon
     __xdata uint8_t char_pos = 6;
+    __xdata uint8_t is_hex = 0;
 
     keyValue = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
-      keyValue *= 10;
+      if (is_hex) {
+        keyValue *= 16;
+      } else {
+        keyValue *= 10;
+      }
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
         keyValue += (line[char_pos] - '0');
+      } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
+        keyValue += (line[char_pos] - 'A' + 10);
+      } else if (line[char_pos] == 'x' || line[char_pos] == 'X') {
+        is_hex = 1;
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
+        keyValue += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
     }
-    pressKey(keyValue);
+    pressSpecialKey(keyValue);
   } else if (strncmp(line, "Release", 7) == 0) {
     // pokecon
     __xdata uint8_t char_pos = 8;
+    __xdata uint8_t is_hex = 0;
 
     keyValue = 0;
     while (line[char_pos] != ' ' && line[char_pos] != '\r') {
-      keyValue *= 10;
+      if (is_hex) {
+        keyValue *= 16;
+      } else {
+        keyValue *= 10;
+      }
       if (line[char_pos] >= '0' && line[char_pos] <= '9') {
         keyValue += (line[char_pos] - '0');
+      } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
+        keyValue += (line[char_pos] - 'A' + 10);
+      } else if (line[char_pos] == 'x' || line[char_pos] == 'X') {
+        is_hex = 1;
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
+        keyValue += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
     }
-    releaseKey(keyValue);
+    releaseSpecialKey(keyValue);
   } else if (line[0] == 0xaa) {
     // nx2 ver 2.00 - 2.07
     btns = line[5] | (line[6] << 8);
@@ -225,7 +258,7 @@ void parseLine(char* line) {
         btns += (line[char_pos] - '0');
       } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
         btns += (line[char_pos] - 'A' + 10);
-      } else {
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
         btns += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
@@ -239,7 +272,7 @@ void parseLine(char* line) {
         hat += (line[char_pos] - '0');
       } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
         hat += (line[char_pos] - 'A' + 10);
-      } else {
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
         hat += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
@@ -253,7 +286,7 @@ void parseLine(char* line) {
         pc_lx += (line[char_pos] - '0');
       } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
         pc_lx += (line[char_pos] - 'A' + 10);
-      } else {
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
         pc_lx += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
@@ -267,7 +300,7 @@ void parseLine(char* line) {
         pc_ly += (line[char_pos] - '0');
       } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
         pc_ly += (line[char_pos] - 'A' + 10);
-      } else {
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
         pc_ly += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
@@ -281,7 +314,7 @@ void parseLine(char* line) {
         pc_rx += (line[char_pos] - '0');
       } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
         pc_rx += (line[char_pos] - 'A' + 10);
-      } else {
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
         pc_rx += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
@@ -295,7 +328,7 @@ void parseLine(char* line) {
         pc_ry += (line[char_pos] - '0');
       } else if (line[char_pos] >= 'A' && line[char_pos] <= 'F') {
         pc_ry += (line[char_pos] - 'A' + 10);
-      } else {
+      } else if (line[char_pos] >= 'a' && line[char_pos] <= 'f') {
         pc_ry += (line[char_pos] - 'a' + 10);
       }
       char_pos++;
