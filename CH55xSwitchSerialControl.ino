@@ -363,6 +363,7 @@ void parseLine(char* line) {
 }
 
 void setup() {
+  delay(300);
   USBInit();
   Serial0_begin(9600);
   Serial1_begin(9600);

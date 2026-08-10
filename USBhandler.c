@@ -63,8 +63,8 @@ void USB_EP0_SETUP() {
               }
               break;
             case 0x21:
-              pDescr = HidDesc;
-              len = HidDescLen;
+              pDescr = CfgDesc + (UsbSetupBuf->wIndexL ? 43 : 18);
+              len = 9;
               break;
             case 0x22:
               if (UsbSetupBuf->wIndexL == 0) {
@@ -104,6 +104,8 @@ void USB_EP0_SETUP() {
           UsbConfig = UsbSetupBuf->wValueL;
           break;
         case USB_GET_INTERFACE:
+          Ep0Buffer[0] = 0x00;
+          if (SetupLen >= 1) len = 1;
           break;
         case USB_SET_INTERFACE:
           break;
@@ -270,10 +272,8 @@ void USB_EP0_IN() {
 }
 
 void USB_EP0_OUT() {
-  {
-    UEP0_T_LEN = 0;
-    UEP0_CTRL |= UEP_R_RES_ACK | UEP_T_RES_NAK;  //Respond Nak
-  }
+  UEP0_T_LEN = 0;
+  UEP0_CTRL = bUEP_R_TOG | bUEP_T_TOG | UEP_R_RES_ACK | UEP_T_RES_ACK;
 }
 
 #pragma save
@@ -335,10 +335,12 @@ void USBInterrupt(void) {
   // Device mode USB bus reset
   if (UIF_BUS_RST) {
     UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
-    UEP1_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK;
+    UEP1_T_LEN = 0;
+    UEP1_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;
     UEP2_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;
 
     USB_DEV_AD = 0x00;
+    UsbConfig = 0;
     UIF_SUSPEND = 0;
     UIF_TRANSFER = 0;
     UIF_BUS_RST = 0;  // Clear interrupt flag
