@@ -1,0 +1,59 @@
+name: Build hex
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label used in the output file name
+        required: false
+        default: v2.4
+
+permissions:
+  contents: write
+
+env:
+  CH55X_INDEX_URL: https://raw.githubusercontent.com/DeqingSun/ch55xduino/ch55xduino/package_ch55xduino_mcs51_index.json
+  # Pinned: the sketch already fills 99% of the 14336 byte flash, so a newer core can overflow it
+  CH55X_CORE_VERSION: 0.0.26
+  FQBN: CH55xDuino:mcs51:ch552:clock=24internal,usb_settings=usbcdc,upload_method=usb,bootloader_pin=p36
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # arduino-cli requires the sketch directory name to match the .ino file name
+          path: CH55xSwitchSerialControl
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ch55xduino core
+        run: |
+          arduino-cli core update-index --additional-urls "$CH55X_INDEX_URL"
+          arduino-cli core install "CH55xDuino:mcs51@$CH55X_CORE_VERSION" --additional-urls "$CH55X_INDEX_URL"
+
+      - name: Compile
+        run: arduino-cli compile --fqbn "$FQBN" --output-dir build CH55xSwitchSerialControl
+
+      - name: Name the hex after the release tag
+        id: hex
+        run: |
+          version="${{ github.event.release.tag_name || inputs.version }}"
+          name="CH55xSwitchSerialControl_${version}.hex"
+          mv build/CH55xSwitchSerialControl.ino.hex "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.hex.outputs.name }}
+          path: ${{ steps.hex.outputs.name }}
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.hex.outputs.name }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
