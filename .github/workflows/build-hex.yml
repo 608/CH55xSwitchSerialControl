@@ -1,0 +1,92 @@
+name: Build hex
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label for the output file name (defaults to the short commit sha)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-hex-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CH55X_INDEX_URL: https://raw.githubusercontent.com/DeqingSun/ch55xduino/ch55xduino/package_ch55xduino_mcs51_index.json
+  # Pinned: the sketch already fills 99% of the 14336 byte flash, so a newer core can overflow it
+  CH55X_CORE_VERSION: 0.0.26
+  FQBN: CH55xDuino:mcs51:ch552:clock=24internal,usb_settings=usbcdc,upload_method=usb,bootloader_pin=p36
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      # write is needed only by the release upload step; fork PRs get read regardless
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Prepare sketch directory
+        id: sketch
+        run: |
+          # arduino-cli requires the sketch directory name to match the .ino file name
+          name=$(basename "$(ls src/*.ino | head -n1)" .ino)
+          mv src "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino-${{ runner.os }}-ch55x-${{ env.CH55X_CORE_VERSION }}
+
+      - name: Install ch55xduino core
+        run: |
+          arduino-cli core update-index --additional-urls "$CH55X_INDEX_URL"
+          arduino-cli core install "CH55xDuino:mcs51@$CH55X_CORE_VERSION" --additional-urls "$CH55X_INDEX_URL"
+
+      - name: Compile
+        env:
+          SKETCH: ${{ steps.sketch.outputs.name }}
+        run: arduino-cli compile --fqbn "$FQBN" --output-dir build "$SKETCH"
+
+      - name: Name the hex after the release tag
+        id: hex
+        env:
+          SKETCH: ${{ steps.sketch.outputs.name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${RELEASE_TAG:-$INPUT_VERSION}"
+          [ -n "$version" ] || version="${GITHUB_SHA::7}"
+          # upload-artifact rejects / : < > | * ? \ " in names, and tags may contain them
+          version="${version//[^A-Za-z0-9._-]/-}"
+          base="${SKETCH}_${version}"
+          mv "build/${SKETCH}.ino.hex" "$base.hex"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          # no .hex suffix: the download is zipped either way, and .hex.zip confuses people
+          name: ${{ steps.hex.outputs.base }}
+          path: ${{ steps.hex.outputs.base }}.hex
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          HEX: ${{ steps.hex.outputs.base }}.hex
+        run: gh release upload "$RELEASE_TAG" "$HEX" --clobber
